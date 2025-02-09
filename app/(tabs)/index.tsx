@@ -13,7 +13,8 @@ export default function HomeScreen() {
   );
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const LOCATION_UPDATE_INTERVAL = 10000; 
+  const API_ROUTE = "https://webhook.site/00c8c346-a12e-4844-b49b-20a76a4de7a6"; 
+  const LOCATION_UPDATE_INTERVAL = 10000; // Interval in milliseconds (10s default)
 
   useEffect(() => {
     async function getCurrentLocation() {
@@ -25,9 +26,20 @@ export default function HomeScreen() {
 
       let location = await Location.getCurrentPositionAsync({});
       setLocation(location);
+      sendLocationToApi(location);
     }
 
-
+    async function sendLocationToApi(location: Location.LocationObject) {
+      try {
+        await fetch(API_ROUTE, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(location),
+        });
+      } catch (error) {
+        console.error("Error sending location:", error);
+      }
+    }
 
     getCurrentLocation();
     const interval = setInterval(getCurrentLocation, LOCATION_UPDATE_INTERVAL);
