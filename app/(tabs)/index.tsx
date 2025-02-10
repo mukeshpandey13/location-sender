@@ -14,9 +14,10 @@ export default function HomeScreen() {
   );
   const locationRef = useRef<Location.LocationObject | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  
+
   // const serverIP = '10.100.11.32:3000';
   const serverIP = "http://localhost:3000";
+  const LOCATION_UPDATE_INTERVAL = 10000; // Interval in milliseconds (10s default)
 
   socket.current = io(serverIP);
 
@@ -26,9 +27,7 @@ export default function HomeScreen() {
 
     // setServerMessage(message);
   });
-  const LOCATION_UPDATE_INTERVAL = 10000; // Interval in milliseconds (10s default)
 
-  let intervalId: any;
   useEffect(() => {
     async function getCurrentLocation() {
       let { status } = await Location.requestForegroundPermissionsAsync();
@@ -45,7 +44,7 @@ export default function HomeScreen() {
     }
 
     getCurrentLocation();
-    intervalId = setInterval(async () => {
+    const intervalId = setInterval(async () => {
       await getCurrentLocation();
       
     // bug here because sendLocation in setInterval causes it to inherit state from when first interval was called,
@@ -67,12 +66,12 @@ export default function HomeScreen() {
     locationRef.current = location;
   }, [location]);
 
-  // let text = "Waiting...";
-  // if (errorMsg) {
-  //   text = errorMsg;
-  // } else if (location) {
-  //   text = JSON.stringify(location);
-  // }
+  let text = "Waiting...";
+  if (errorMsg) {
+    text = errorMsg;
+  } else if (location) {
+    text = JSON.stringify(location);
+  }
 
   const sendLocation = () => {
     if (socket.current) {
@@ -95,11 +94,7 @@ export default function HomeScreen() {
         />
       }
     >
-      {/* <ThemedText>Current Location: {text}</ThemedText> */}
-      <Button
-        onPress={() => clearInterval(intervalId)}
-        title="Stop sending periodic signals"
-      />
+      <ThemedText>Current Location: {text}</ThemedText>
     </ParallaxScrollView>
   );
 }
