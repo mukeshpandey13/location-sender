@@ -1,21 +1,34 @@
-import { Image, StyleSheet, Platform, Text, View } from "react-native";
+import { Image, StyleSheet, Platform, Text, View, Button } from "react-native";
 
 import { HelloWave } from "@/components/HelloWave";
 import ParallaxScrollView from "@/components/ParallaxScrollView";
 import { ThemedText } from "@/components/ThemedText";
-import { ThemedView } from "@/components/ThemedView";
-import { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import * as Location from "expo-location";
+import io, { Socket } from "socket.io-client";
 
 export default function HomeScreen() {
+  const socket = React.useRef<Socket | null>(null);
   const [location, setLocation] = useState<Location.LocationObject | null>(
     null
   );
+  const locationRef = useRef<Location.LocationObject | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  
+  // const serverIP = '10.100.11.32:3000';
+  const serverIP = "http://localhost:3000";
 
-  const API_ROUTE = "https://webhook.site/00c8c346-a12e-4844-b49b-20a76a4de7a6"; 
+  socket.current = io(serverIP);
+
+  // Listen for messages from the server
+  socket.current.on("message", (message) => {
+    console.log(message);
+
+    // setServerMessage(message);
+  });
   const LOCATION_UPDATE_INTERVAL = 10000; // Interval in milliseconds (10s default)
 
+  let intervalId: any;
   useEffect(() => {
     async function getCurrentLocation() {
       let { status } = await Location.requestForegroundPermissionsAsync();
@@ -24,34 +37,54 @@ export default function HomeScreen() {
         return;
       }
 
-      let location = await Location.getCurrentPositionAsync({});
-      setLocation(location);
-      sendLocationToApi(location);
-    }
-
-    async function sendLocationToApi(location: Location.LocationObject) {
-      try {
-        await fetch(API_ROUTE, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(location),
-        });
-      } catch (error) {
-        console.error("Error sending location:", error);
-      }
+      console.log("getting location");
+      
+      let tempLocation = await Location.getCurrentPositionAsync({});
+      setLocation(tempLocation);
+      console.log("tempLocation: ", tempLocation);
     }
 
     getCurrentLocation();
-    const interval = setInterval(getCurrentLocation, LOCATION_UPDATE_INTERVAL);
-    return () => clearInterval(interval);
+    intervalId = setInterval(async () => {
+      await getCurrentLocation();
+      
+    // bug here because sendLocation in setInterval causes it to inherit state from when first interval was called,
+    // instead of reflecting state changes
+
+    // fix: create ref just to reflect changes to state. update ref.current wiht useEffect for location state   
+      sendLocation();
+    }, LOCATION_UPDATE_INTERVAL);
+    return () => {
+      clearInterval(intervalId);
+      if (socket.current) {
+        socket.current.disconnect();
+      }
+    };
   }, []);
 
-  let text = "Waiting...";
-  if (errorMsg) {
-    text = errorMsg;
-  } else if (location) {
-    text = JSON.stringify(location);
-  }
+  useEffect( () => {
+    console.log("location changed: ", {location});
+    locationRef.current = location;
+  }, [location]);
+
+  // let text = "Waiting...";
+  // if (errorMsg) {
+  //   text = errorMsg;
+  // } else if (location) {
+  //   text = JSON.stringify(location);
+  // }
+
+  const sendLocation = () => {
+    if (socket.current) {
+      console.log("location state when sending: ", location);
+      console.log("location ref when sending: ", locationRef.current);
+
+      socket.current.emit("message", JSON.stringify(locationRef.current));
+      console.log("sent location");
+      
+    }
+  };
+
   return (
     <ParallaxScrollView
       headerBackgroundColor={{ light: "#A1CEDC", dark: "#1D3D47" }}
@@ -62,7 +95,11 @@ export default function HomeScreen() {
         />
       }
     >
-      <ThemedText>Current Location: {text}</ThemedText>
+      {/* <ThemedText>Current Location: {text}</ThemedText> */}
+      <Button
+        onPress={() => clearInterval(intervalId)}
+        title="Stop sending periodic signals"
+      />
     </ParallaxScrollView>
   );
 }
